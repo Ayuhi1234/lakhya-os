@@ -1,9 +1,9 @@
 // --- 1. CONFIG & DATA ---
-let schedule = JSON.parse(localStorage.getItem('lakhya_os_final_db')) || {};
-let user = JSON.parse(localStorage.getItem('lakhya_os_final_user')) || { xp: 0, level: 1 };
+let schedule = JSON.parse(localStorage.getItem('lakhya_fixed_db')) || {};
+let user = JSON.parse(localStorage.getItem('lakhya_fixed_user')) || { xp: 0, level: 1 };
 let selectedDate = new Date().toISOString().split('T')[0];
 
-// --- FUNNY SOUNDS LIBRARY ---
+// --- FUNNY SOUNDS ---
 const SOUNDS = {
     beep: 'https://actions.google.com/sounds/v1/alarms/beep_short.ogg',
     boing: 'https://actions.google.com/sounds/v1/cartoon/boing_spring.ogg',
@@ -11,7 +11,6 @@ const SOUNDS = {
     quack: 'https://actions.google.com/sounds/v1/animals/duck_quack.ogg',
     whistle: 'https://actions.google.com/sounds/v1/cartoon/slide_whistle.ogg'
 };
-
 let currentAudio = new Audio(SOUNDS.beep);
 
 // --- 2. INIT ---
@@ -22,19 +21,21 @@ window.onload = () => {
     renderYearMap();
     setInterval(checkNotifications, 60000); 
     document.getElementById('date-label').innerText = new Date().toDateString();
-    
+
     // Load sound pref
     const savedSound = localStorage.getItem('lakhya_sound_pref') || 'beep';
-    document.getElementById('sound-select').value = savedSound;
+    if(document.getElementById('sound-select')) document.getElementById('sound-select').value = savedSound;
     currentAudio = new Audio(SOUNDS[savedSound]);
-    
+
     if("Notification" in window && Notification.permission === "granted") {
-        document.getElementById('btn-notify').classList.add('active');
-        document.getElementById('btn-notify').innerText = "🔔 Active";
+        if(document.getElementById('btn-notify')) {
+            document.getElementById('btn-notify').classList.add('active');
+            document.getElementById('btn-notify').innerText = "🔔 Active";
+        }
     }
 };
 
-// --- 3. HELPER: FORMAT TIME ---
+// --- 3. HELPER: TIME FORMATTER ---
 function formatTime(hour, min) {
     if (hour === null || hour === undefined || isNaN(hour)) return "";
     const mStr = (min || 0).toString().padStart(2, '0');
@@ -46,14 +47,13 @@ function formatTime(hour, min) {
 // --- 4. CLOCK LOGIC (MANUAL ADD) ---
 function addTask() {
     const title = document.getElementById('inp-title').value;
-    const timeStr = document.getElementById('inp-time').value; // "14:30"
+    const timeStr = document.getElementById('inp-time').value; 
     const cat = document.getElementById('inp-cat').value;
 
     if(title) {
         if(!schedule[selectedDate]) schedule[selectedDate] = [];
         
         let h = null, m = null, disp = "";
-        
         if(timeStr) {
             const parts = timeStr.split(':');
             h = parseInt(parts[0]);
@@ -75,7 +75,7 @@ function addTask() {
     }
 }
 
-// --- 5. COMPLEX AI PARSER (WEEKLY) ---
+// --- 5. FIXED AI PARSER (THE FIX IS HERE) ---
 function parseComplexAI() {
     const text = document.getElementById('ai-input').value;
     if(!text) return;
@@ -89,14 +89,14 @@ function parseComplexAI() {
         const l = line.trim(); const lower = l.toLowerCase();
         if (!l) return;
 
-        // Detect Day
+        // 1. Detect Day
         const dayMatch = lower.match(/(monday|tuesday|wednesday|thursday|friday|saturday|sunday)/);
         if (dayMatch) {
             currentParseDate = getNextDateForDay(dayMatch[0]);
             return;
         }
 
-        // Detect Time (e.g. 4:30 AM)
+        // 2. Detect Time
         const timeMatch = l.match(/(\d{1,2}):(\d{2})\s?(?:–|-|to)?.*?(AM|PM|am|pm)/i);
         if (timeMatch) {
             let hour = parseInt(timeMatch[1]);
@@ -108,25 +108,26 @@ function parseComplexAI() {
             
             const disp = formatTime(hour, minutes);
             lastTime = { h: hour, m: minutes, disp: disp };
+            
+            // FIX: Check if Task is on the SAME line (e.g. "4:30 AM - Polity")
+            let leftover = l.replace(timeMatch[0], "").trim();
+            // Remove separators like "- " or ": " or "– "
+            leftover = leftover.replace(/^[-–:]\s*/, "");
+            
+            if(leftover.length > 2) {
+                // Task found on same line! Add immediately.
+                if (currentParseDate) {
+                    insertTask(currentParseDate, leftover, lastTime);
+                    count++;
+                    lastTime = null; // Reset because we used it
+                }
+            }
             return;
         }
 
-        // Detect Task
-        if (currentParseDate && lastTime) {
-            let cat = 'Skill';
-            if (lower.includes('upsc') || lower.includes('polity')) cat = 'UPSC';
-            else if (lower.includes('tech') || lower.includes('dsa') || lower.includes('code')) cat = 'Tech';
-            else if (lower.includes('project')) cat = 'Project';
-
-            let title = l.replace(/^[-\u2022]\s*/, "").trim(); 
-            let dateKey = currentParseDate.toISOString().split('T')[0];
-            
-            if (!schedule[dateKey]) schedule[dateKey] = [];
-            schedule[dateKey].push({
-                title: title, desc: "AI Plan", cat: cat,
-                alertTime: lastTime.h, alertMin: lastTime.m, timeDisp: lastTime.disp,
-                done: false
-            });
+        // 3. Detect Task (On Next Line)
+        if (currentParseDate && lastTime && l.length > 2) {
+            insertTask(currentParseDate, l, lastTime);
             count++;
             lastTime = null;
         }
@@ -138,12 +139,32 @@ function parseComplexAI() {
     alert(`🤖 AI Scheduled ${count} tasks!`);
 }
 
+function insertTask(dateObj, titleStr, timeObj) {
+    let cat = 'Skill';
+    const lower = titleStr.toLowerCase();
+    if (lower.includes('upsc') || lower.includes('polity')) cat = 'UPSC';
+    else if (lower.includes('tech') || lower.includes('dsa') || lower.includes('code')) cat = 'Tech';
+    else if (lower.includes('project')) cat = 'Project';
+
+    let dateKey = dateObj.toISOString().split('T')[0];
+    if (!schedule[dateKey]) schedule[dateKey] = [];
+    
+    // Remove bullets if present
+    titleStr = titleStr.replace(/^[-\u2022]\s*/, "");
+
+    schedule[dateKey].push({
+        title: titleStr, desc: "AI Plan", cat: cat,
+        alertTime: timeObj.h, alertMin: timeObj.m, timeDisp: timeObj.disp,
+        done: false
+    });
+}
+
 function getNextDateForDay(dayName) {
     const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
     const targetIdx = days.indexOf(dayName);
     const d = new Date();
     let dist = targetIdx - d.getDay();
-    if (dist < 0) dist += 7; // Only future days
+    if (dist < 0) dist += 7;
     d.setDate(d.getDate() + dist);
     return d;
 }
@@ -155,7 +176,6 @@ function renderTasks() {
     const tasks = schedule[selectedDate] || [];
     document.getElementById('empty-state').style.display = tasks.length===0?'block':'none';
 
-    // Sort by Time
     tasks.sort((a,b) => (a.alertTime - b.alertTime) || (a.alertMin - b.alertMin));
 
     tasks.forEach((t, i) => {
@@ -203,12 +223,12 @@ function startFocus(title) {
 }
 function stopFocus() { clearInterval(timer); document.getElementById('zen-overlay').classList.remove('active'); }
 
-// --- 8. NOTIFICATIONS & SOUND ---
+// --- 8. SOUND & NOTIFICATIONS ---
 function changeSound() {
     const selected = document.getElementById('sound-select').value;
     currentAudio = new Audio(SOUNDS[selected]);
     localStorage.setItem('lakhya_sound_pref', selected);
-    currentAudio.play(); // Test
+    currentAudio.play();
 }
 
 function activateAudio() {
@@ -224,7 +244,6 @@ function activateAudio() {
 function checkNotifications() {
     const now = new Date();
     const tasks = schedule[now.toISOString().split('T')[0]] || [];
-    
     tasks.forEach(t => {
         if(!t.done && t.alertTime === now.getHours()) {
             let targetMin = t.alertMin || 0;
@@ -294,11 +313,11 @@ function switchView(id, btn) {
     if(id==='year') renderYearMap();
 }
 function saveData() { 
-    localStorage.setItem('lakhya_os_final_db', JSON.stringify(schedule)); 
-    localStorage.setItem('lakhya_os_final_user', JSON.stringify(user)); 
+    localStorage.setItem('lakhya_fixed_db', JSON.stringify(schedule)); 
+    localStorage.setItem('lakhya_fixed_user', JSON.stringify(user)); 
 }
 
-// Global Timer Toggle
+// Timer
 function toggleTimer() {
     if(timer) stopFocus(); else startFocus("Manual Session");
 }
