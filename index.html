@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Lakhya OS Final</title>
+    
+    <meta name="theme-color" content="#1a1a2e">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <link rel="manifest" href="manifest.json">
+
+    <style>
+        :root {
+            --bg: #1a1a2e; --card: #16213e; --primary: #0f3460;
+            --accent: #e94560; --text: #eaeaea; --sub: #a0a0a0;
+            --upsc: #f1c40f; --tech: #2ecc71; --proj: #3498db; --skill: #9b59b6;
+        }
+
+        body { margin: 0; background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, sans-serif; padding-bottom: 100px; user-select: none; }
+        * { box-sizing: border-box; touch-action: manipulation; transition: 0.2s; }
+        .app-container { padding: 20px; max-width: 600px; margin: 0 auto; }
+
+        /* HEADER */
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .notify-btn { background: rgba(233,69,96,0.2); border: 1px solid var(--accent); color: var(--accent); padding: 8px 15px; border-radius: 20px; font-size: 11px; font-weight: bold; cursor: pointer; }
+        .notify-btn.active { background: var(--accent); color: white; }
+
+        /* CALENDAR STRIP */
+        .calendar-strip { display: flex; overflow-x: auto; padding-bottom: 10px; gap: 10px; margin-bottom: 10px; scrollbar-width: none; }
+        .date-card {
+            min-width: 55px; height: 65px; background: var(--card); border-radius: 12px;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            border: 1px solid rgba(255,255,255,0.1); cursor: pointer; flex-shrink: 0;
+        }
+        .date-card.active { background: var(--accent); border-color: var(--accent); box-shadow: 0 5px 15px rgba(233, 69, 96, 0.3); }
+        .day-name { font-size: 10px; opacity: 0.8; text-transform: uppercase; }
+        .day-num { font-size: 18px; font-weight: bold; }
+        .dot { width: 4px; height: 4px; background: white; border-radius: 50%; margin-top: 4px; display: none; }
+        .date-card.has-tasks .dot { display: block; }
+
+        /* AI BUTTON */
+        .ai-btn { 
+            width: 100%; background: linear-gradient(45deg, #1d976c, #93f9b9); border: none; color: #000; 
+            padding: 15px; border-radius: 12px; font-size: 14px; font-weight: bold; cursor: pointer;
+            display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 20px;
+            box-shadow: 0 5px 15px rgba(46, 204, 113, 0.3);
+        }
+        .ai-btn:active { transform: scale(0.98); }
+
+        /* TASK LIST */
+        .task-list { list-style: none; padding: 0; }
+        .task-card {
+            background: var(--card); border-radius: 12px; padding: 15px; margin-bottom: 15px;
+            border-left: 4px solid var(--sub); position: relative;
+        }
+        .cat-UPSC { border-color: var(--upsc); } .cat-Tech { border-color: var(--tech); }
+        .cat-Project { border-color: var(--proj); } .cat-Skill { border-color: var(--skill); }
+
+        .task-header { display: flex; align-items: flex-start; }
+        .task-content { flex-grow: 1; margin-left: 10px; }
+        .task-title { font-size: 14px; font-weight: bold; margin-bottom: 4px; }
+        .task-desc { font-size: 11px; opacity: 0.7; color: #ccc; line-height: 1.3; }
+        .time-badge { background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px; font-size: 10px; color: #ccc; margin-bottom: 4px; display: inline-block; }
+
+        .check-circle { min-width: 24px; height: 24px; border: 2px solid var(--sub); border-radius: 50%; margin-top: 2px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        .task-card.done .check-circle { background: var(--accent); border-color: var(--accent); }
+        .task-card.done .check-circle::after { content: '✓'; color: white; font-size: 14px; }
+        .task-card.done { opacity: 0.5; }
+
+        /* ACTION BUTTONS */
+        .task-actions { display: flex; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.05); }
+        .btn-mini { 
+            background: rgba(255,255,255,0.08); border: none; padding: 8px 12px; 
+            border-radius: 8px; font-size: 11px; font-weight: bold; cursor: pointer; 
+            display: flex; align-items: center; gap: 5px; color: #ccc; flex: 1; justify-content: center;
+        }
+        .btn-study { color: var(--tech); background: rgba(46, 204, 113, 0.15); }
+        .btn-focus { color: var(--upsc); background: rgba(241, 196, 15, 0.15); }
+
+        /* YEAR GRID */
+        .year-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 30px; }
+        .month-box { background: var(--card); border-radius: 10px; padding: 10px; }
+        .month-title { font-size: 10px; font-weight: bold; text-align: center; margin-bottom: 5px; color: var(--sub); }
+        .days-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+        .day-dot { width: 100%; aspect-ratio: 1; background: rgba(255,255,255,0.05); border-radius: 2px; }
+        .day-dot.active { background: var(--tech); box-shadow: 0 0 5px var(--tech); }
+
+        /* ZEN OVERLAY */
+        #zen-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 999; display: none; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+        #zen-overlay.active { display: flex; animation: fadeIn 0.5s; }
+        .zen-timer { font-size: 80px; font-weight: 800; color: white; margin-bottom: 20px; }
+        .zen-task { font-size: 24px; color: #888; margin-bottom: 40px; }
+
+        /* NAV & FAB */
+        .bottom-nav { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(22, 33, 62, 0.95); backdrop-filter: blur(10px); width: 90%; max-width: 380px; height: 65px; border-radius: 35px; display: flex; justify-content: space-around; align-items: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5); z-index: 50; border: 1px solid rgba(255,255,255,0.1); }
+        .nav-item { background: none; border: none; font-size: 24px; opacity: 0.5; cursor: pointer; }
+        .nav-item.active { opacity: 1; transform: translateY(-3px); text-shadow: 0 0 15px var(--accent); }
+        .fab { position: fixed; bottom: 100px; right: 20px; width: 55px; height: 55px; border-radius: 50%; background: var(--accent); color: white; border: none; font-size: 28px; box-shadow: 0 5px 20px rgba(233, 69, 96, 0.4); z-index: 40; cursor: pointer; }
+
+        /* MODALS */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: none; align-items: center; justify-content: center; z-index: 100; }
+        .modal { background: var(--card); width: 85%; padding: 25px; border-radius: 20px; max-height: 90vh; overflow-y: auto; }
+        input, select, textarea { width: 100%; padding: 12px; margin: 8px 0; background: #0f2038; border: 1px solid #333; color: white; border-radius: 8px; font-family: sans-serif; }
+        
+        /* TIME INPUT STYLING */
+        input[type="time"] { color-scheme: dark; font-size: 16px; }
+
+        .btn-primary { width: 100%; padding: 12px; background: var(--accent); color: white; border: none; border-radius: 8px; font-weight: bold; margin-top: 10px; cursor: pointer; }
+        .section { display: none; } .section.active { display: block; animation: fadeIn 0.3s; }
+        @keyframes fadeIn { from{opacity:0;} to{opacity:1;} }
+    </style>
+</head>
+<body>
+
+    <div id="zen-overlay">
+        <div style="opacity:0.5; font-size:12px; letter-spacing:2px; margin-bottom:20px;">FOCUS MODE</div>
+        <div class="zen-task" id="zen-task-title">Studying...</div>
+        <div class="zen-timer" id="zen-timer-display">25:00</div>
+        <button class="btn-primary" style="background:transparent; border:2px solid white; width:auto; padding:10px 30px;" onclick="stopFocus()">STOP SESSION</button>
+    </div>
+
+    <div class="app-container">
+        <div class="header">
+            <div>
+                <h2 style="margin:0; font-weight:800;">Lakhya OS</h2>
+                <span style="font-size:11px; opacity:0.6;" id="date-label">Today</span>
+            </div>
+            
+            <div style="display:flex; gap:5px; align-items:center;">
+                <select id="sound-select" onchange="changeSound()" style="padding:4px; width:70px; font-size:10px; height:28px; background:#16213e; color:white; border:1px solid #333; border-radius:5px;">
+                    <option value="beep">Beep</option>
+                    <option value="boing">Boing 🤪</option>
+                    <option value="magic">Magic ✨</option>
+                    <option value="quack">Quack 🦆</option>
+                    <option value="whistle">Whistle 💨</option>
+                </select>
+                <button class="notify-btn" onclick="activateAudio()" id="btn-notify">🔔 On</button>
+            </div>
+        </div>
+
+        <div class="level-card">
+            <div style="display:flex; justify-content:space-between; align-items:end;">
+                <div>
+                    <h1 style="margin:0; font-size:32px;" id="level-display">Lvl 1</h1>
+                    <span style="opacity:0.7; font-size:11px; font-weight:bold;">CONSISTENCY</span>
+                </div>
+                <div style="text-align:right;">
+                    <div style="font-weight:bold; font-size:16px;" id="xp-text">0 XP</div>
+                </div>
+            </div>
+            <div class="xp-bar-bg"><div class="xp-bar-fill" id="xp-fill"></div></div>
+        </div>
+
+        <div id="view-tasks" class="section active">
+            <div class="calendar-strip" id="calendar-strip"></div>
+
+            <button class="ai-btn" onclick="document.getElementById('modal-ai').style.display='flex'">
+                <span>🤖</span> Paste Weekly Plan
+            </button>
+
+            <h3 style="margin-bottom:15px;">Daily Schedule</h3>
+            <ul class="task-list" id="task-list"></ul>
+            <div id="empty-state" style="text-align:center; opacity:0.3; margin-top:50px;">
+                <p style="font-size:40px;">📅</p>
+                <p>No tasks. Paste Plan or Add Manually.</p>
+            </div>
+        </div>
+
+        <div id="view-year" class="section">
+            <h3 style="margin-bottom:10px;">2026 Activity Map</h3>
+            <div id="year-grid-container" class="year-grid"></div>
+        </div>
+
+        <div id="view-timer" class="section" style="text-align:center;">
+            <h2>Focus Zone 🧘</h2>
+            <div class="zen-timer" id="timer-page-display">25:00</div>
+            <button class="btn-primary" onclick="toggleTimer()">Start Session</button>
+        </div>
+
+    </div>
+
+    <button class="fab" onclick="document.getElementById('modal-add').style.display='flex'">+</button>
+    <div class="bottom-nav">
+        <button class="nav-item active" onclick="switchView('tasks', this)">📝</button>
+        <button class="nav-item" onclick="switchView('year', this)">📅</button>
+        <button class="nav-item" onclick="switchView('timer', this)">⏳</button>
+    </div>
+
+    <div id="modal-add" class="modal-overlay">
+        <div class="modal">
+            <h3>Add Task</h3>
+            
+            <label style="font-size:12px; color:#aaa; display:block; margin-top:10px;">Task Title</label>
+            <input type="text" id="inp-title" placeholder="e.g. Read Polity">
+            
+            <label style="font-size:12px; color:#aaa; display:block; margin-top:10px;">Select Time ⏰</label>
+            <input type="time" id="inp-time">
+            
+            <label style="font-size:12px; color:#aaa; display:block; margin-top:10px;">Category</label>
+            <select id="inp-cat">
+                <option value="UPSC">UPSC</option>
+                <option value="Tech">Tech</option>
+                <option value="Project">Project</option>
+            </select>
+            
+            <button class="btn-primary" onclick="addTask()">Save Task</button>
+            <button onclick="document.getElementById('modal-add').style.display='none'" style="width:100%; padding:10px; background:none; border:none; color:#888; margin-top:5px;">Cancel</button>
+        </div>
+    </div>
+
+    <div id="modal-ai" class="modal-overlay">
+        <div class="modal">
+            <h3>🤖 Weekly AI Importer</h3>
+            <p style="font-size:11px; opacity:0.7;">Paste your schedule. I will detect days (Monday...) and times (9:00 AM).</p>
+            <textarea id="ai-input" rows="8" placeholder="Paste here..."></textarea>
+            <button class="btn-primary" onclick="parseComplexAI()">Generate</button>
+            <button onclick="document.getElementById('modal-ai').style.display='none'" style="width:100%; padding:10px; background:none; border:none; color:#888; margin-top:5px;">Cancel</button>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
